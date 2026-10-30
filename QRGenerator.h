@@ -46,7 +46,6 @@ private:
     QPlainTextEdit *inputEdit = nullptr;
     QLabel *countLabel = nullptr;
     QLabel *previewLabel = nullptr;
-    QLabel *previewMetaLabel = nullptr;
 
     QPushButton *printButton = nullptr;
     QPushButton *pdfButton = nullptr;
