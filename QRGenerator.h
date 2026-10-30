@@ -50,6 +50,9 @@ private:
     // Рисование на принтере/документе
     void drawScooterOnPainter(QPainter &painter, const QString &scooterNumber, 
                               int x, int y, int sizeMm = 23);
+
+    bool drawCodesOnPrinter(QPrinter &printer,
+                            const std::vector<QString> &numbers);
     
     // UI элементы
     QWidget *centralWidget;
