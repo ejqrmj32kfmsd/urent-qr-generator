@@ -3,7 +3,7 @@ name: Build Windows Release
 on:
   release:
     types: [published]
-  workflow_dispatch:   # ручной запуск для тестов без релиза
+  workflow_dispatch:   # ручной прогон без создания релиза
 
 jobs:
   build:
@@ -13,41 +13,48 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Init MSVC environment (cl/link в PATH)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.5.3'
           arch: 'win64_msvc2019_64'
-          # modules НЕ указываем: qtbase базовый, PrintSupport входит в него.
-          # Именно modules: 'qtbase' ронял aqt (python) с exit code 1.
+          # modules НЕ указываем — qtbase базовый, PrintSupport входит в него.
           cache: true
 
-      - name: Show Qt location (debug)
+      - name: Ensure Ninja
         run: |
-          (Get-Command qmake).Source
-          (Get-Command windeployqt).Source
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+            choco install ninja -y
+          }
+          ninja --version
 
-      - name: Configure CMake
+      - name: Configure CMake (Ninja, чистый output в dist/)
         run: |
-          # Вычисляем корень Qt из пути к qmake (лежит в <QtRoot>/bin/qmake.exe)
           $qtBin  = (Get-Command qmake).Source
           $qtRoot = Split-Path (Split-Path $qtBin)
           Write-Host "Qt root: $qtRoot"
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+          cmake -S . -B build -G Ninja `
                 -DCMAKE_BUILD_TYPE=Release `
-                -DCMAKE_PREFIX_PATH="$qtRoot"
+                -DCMAKE_PREFIX_PATH="$qtRoot" `
+                -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$dist"
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build
 
-      - name: Deploy Qt runtime (dll + plugins рядом с exe)
-        run: windeployqt --release --no-translations --no-compiler-runtime build/Release/UrentQRGenerator.exe
+      - name: Deploy Qt runtime рядом с exe (в dist/)
+        run: windeployqt --release --no-translations --no-compiler-runtime dist/UrentQRGenerator.exe
 
-      - name: List build output (debug)
-        run: Get-ChildItem -Recurse build/Release | Select-Object -ExpandProperty FullName
+      - name: List dist (debug)
+        run: Get-ChildItem -Recurse dist | Select-Object -ExpandProperty FullName
 
       - name: Create ZIP archive
-        run: Compress-Archive -Path build/Release/* -DestinationPath UrentQRGenerator_Windows.zip -Force
+        run: Compress-Archive -Path dist/* -DestinationPath UrentQRGenerator_Windows.zip -Force
 
       - name: Upload to Release
         if: github.event_name == 'release'
@@ -57,7 +64,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload artifact (для ручного теста)
+      - name: Upload artifact (ручной тест)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
