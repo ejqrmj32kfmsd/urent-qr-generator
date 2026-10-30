@@ -84,7 +84,7 @@ void configureA4Printer(QPrinter &printer)
 QRGenerator::QRGenerator(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle(QStringLiteral("Юрент · QR Studio"));
+    setWindowTitle(QStringLiteral("Юрент — Генератор QR-наклеек"));
     setMinimumSize(900, 650);
     resize(1080, 730);
 
@@ -102,7 +102,7 @@ QRGenerator::QRGenerator(QWidget *parent)
     heroLayout->setContentsMargins(24, 18, 24, 18);
 
     auto *heroText = new QVBoxLayout();
-    auto *brand = new QLabel(QStringLiteral("ЮРЕНТ  /  QR STUDIO"), hero);
+    auto *brand = new QLabel(QStringLiteral("ЮРЕНТ"), hero);
     brand->setObjectName("heroTitle");
     auto *tagline = new QLabel(
         QStringLiteral("Сервисная печать QR-наклеек для самокатов · формат 23 × 23 мм"), hero);
@@ -203,15 +203,10 @@ QRGenerator::QRGenerator(QWidget *parent)
     previewLabel->setText(QStringLiteral("Добавь номер самоката\nдля предпросмотра"));
     surfaceLayout->addWidget(previewLabel, 1, Qt::AlignCenter);
 
-    previewMetaLabel = new QLabel(QStringLiteral("QR: https://ure.su/a/…"), previewCard);
-    previewMetaLabel->setObjectName("mutedText");
-    previewMetaLabel->setAlignment(Qt::AlignCenter);
-
     previewLayout->addWidget(previewTitle);
     previewLayout->addWidget(previewDescription);
     previewLayout->addStretch();
     previewLayout->addWidget(previewSurface, 0, Qt::AlignCenter);
-    previewLayout->addWidget(previewMetaLabel);
     previewLayout->addStretch();
     content->addWidget(previewCard, 1);
 
@@ -227,14 +222,22 @@ QRGenerator::QRGenerator(QWidget *parent)
             border: none;
             border-radius: 20px;
         }
-        #heroTitle {
-            color: #FFFFFF;
-            font-size: 19pt;
-            font-weight: 800;
-            letter-spacing: 1px;
+        #hero QLabel {
+            background-color: transparent;
+            border: none;
         }
-        #heroSubtitle {
-            color: #E9DDF8;
+        QLabel#heroTitle {
+            color: #FFFFFF;
+            background-color: transparent;
+            border: none;
+            font-size: 19pt;
+            font-weight: 700;
+            letter-spacing: 0px;
+        }
+        QLabel#heroSubtitle {
+            color: #F1E8FC;
+            background-color: transparent;
+            border: none;
             font-size: 9pt;
         }
         #heroBadge {
@@ -397,16 +400,16 @@ void QRGenerator::drawSticker(QPainter &painter,
     painter.save();
     painter.fillRect(targetPixels, Qt::white);
 
-    // Top wordmark, kept black like the physical reference.
+    // Simple typographic wordmark: same font family as the number, but smaller.
+    // No artificial horizontal stretching or extra letter spacing.
     QFont brandFont(QStringLiteral("Arial"));
     brandFont.setWeight(QFont::Black);
-    brandFont.setPixelSize(qMax(1, qRound(h(2.55))));
-    brandFont.setStretch(150);
-    brandFont.setLetterSpacing(QFont::AbsoluteSpacing, 0.25 * sy);
+    brandFont.setPixelSize(qMax(1, qRound(h(2.05))));
+    brandFont.setStretch(100);
     painter.setFont(brandFont);
     painter.setPen(Qt::black);
     painter.setRenderHint(QPainter::TextAntialiasing, true);
-    painter.drawText(QRectF(x(0.5), y(0.05), w(22.0), h(2.8)),
+    painter.drawText(QRectF(x(0.5), y(0.10), w(22.0), h(2.35)),
                      Qt::AlignHCenter | Qt::AlignVCenter,
                      QStringLiteral("ЮРЕНТ"));
 
@@ -467,7 +470,6 @@ void QRGenerator::updatePreview()
         currentPreview = QImage();
         previewLabel->setPixmap(QPixmap());
         previewLabel->setText(QStringLiteral("Добавь номер самоката\nдля предпросмотра"));
-        previewMetaLabel->setText(QStringLiteral("QR: https://ure.su/a/…"));
         return;
     }
 
@@ -476,9 +478,6 @@ void QRGenerator::updatePreview()
     previewLabel->setText(QString());
     previewLabel->setPixmap(QPixmap::fromImage(currentPreview).scaled(
         350, 350, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    previewMetaLabel->setText(
-        QStringLiteral("%1  →  %2")
-            .arg(formattedNumber(numbers.first()), qrPayload(numbers.first())));
 }
 
 bool QRGenerator::drawAllStickers(QPrinter &printer, const QStringList &numbers) const
