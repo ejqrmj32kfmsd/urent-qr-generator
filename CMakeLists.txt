@@ -1,10 +1,6 @@
-
 cmake_minimum_required(VERSION 3.21)
 
-project(UrentQRGenerator
-    VERSION 1.0.0
-    LANGUAGES CXX
-)
+project(UrentQRGenerator VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,16 +10,12 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTORCC OFF)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS
-    Widgets
-    PrintSupport
-)
+find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 
 add_executable(UrentQRGenerator
     main.cpp
     QRGenerator.cpp
     QRGenerator.h
-
     third_party/qrcodegen/qrcodegen.cpp
     third_party/qrcodegen/qrcodegen.hpp
 )
@@ -38,14 +30,7 @@ target_link_libraries(UrentQRGenerator PRIVATE
 )
 
 if(MSVC)
-    target_compile_options(UrentQRGenerator PRIVATE
-        /W4
-        /utf-8
-    )
+    target_compile_options(UrentQRGenerator PRIVATE /W4 /utf-8)
 else()
-    target_compile_options(UrentQRGenerator PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
-    )
+    target_compile_options(UrentQRGenerator PRIVATE -Wall -Wextra -Wpedantic)
 endif()
