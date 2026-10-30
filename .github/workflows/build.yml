@@ -1,86 +1,194 @@
+
 name: Build Windows Release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
   workflow_dispatch:
+
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    name: Build Windows x64
+    runs-on: windows-2022
 
+    steps:
+      # 1. Получение исходников
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # 2. Установка Qt
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@v4.5.0
         with:
-          version: '6.5.3'
-          arch: 'win64_msvc2019_64'
-          # modules НЕ указываем (qtbase базовый, PrintSupport в нём)
-          # cache убираем: кэш aqt на windows-раннерах — частый источник тихих падений
+          version: '6.8.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
           cache: false
 
-      - name: Locate toolchain (Qt root + MSVC vcvars)
-        id: env
+      # 3. Проверка установки Qt
+      - name: Verify Qt installation
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $qtBin  = (Get-Command qmake).Source
-          $qtRoot = Split-Path (Split-Path $qtBin)
-          "QT_ROOT=$qtRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "QT_ROOT=$qtRoot"
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-          if (-not (Test-Path $vswhere)) { throw "vswhere not found" }
-          $vsPath = & $vswhere -latest -products * `
-                      -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-                      -property installationPath
-          if (-not $vsPath) { throw "No VS with C++ tools" }
-          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
-          if (-not (Test-Path $vcvars)) { throw "vcvars64.bat not found" }
-          "VCVARS=$vcvars" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "VCVARS=$vcvars"
+          Write-Host "QT_ROOT_DIR=$env:QT_ROOT_DIR"
 
-      - name: Configure + Build (MSVC + Ninja, output to dist/)
-        shell: cmd
-        run: |
-          call "%VCVARS%"
-          if errorlevel 1 exit /b 1
-          set "DIST=%GITHUB_WORKSPACE%\dist"
-          cmake -S . -B build -G Ninja ^
-                -DCMAKE_BUILD_TYPE=Release ^
-                -DCMAKE_PREFIX_PATH="%QT_ROOT%" ^
-                -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="%DIST%"
-          if errorlevel 1 exit /b 1
-          cmake --build build
-          if errorlevel 1 exit /b 1
+          if (-not $env:QT_ROOT_DIR) {
+            throw "QT_ROOT_DIR is missing"
+          }
 
-      - name: Deploy Qt runtime next to exe
+          $qtCmake = Join-Path $env:QT_ROOT_DIR "lib/cmake/Qt6"
+          $qtDeploy = Join-Path $env:QT_ROOT_DIR "bin/windeployqt.exe"
+
+          if (-not (Test-Path $qtCmake)) {
+            throw "Qt CMake files not found: $qtCmake"
+          }
+
+          if (-not (Test-Path $qtDeploy)) {
+            throw "windeployqt not found: $qtDeploy"
+          }
+
+          Write-Host "Qt installation verified successfully"
+
+      # 4. Конфигурация CMake
+      - name: Configure CMake
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $dist = Join-Path $env:GITHUB_WORKSPACE 'dist'
-          windeployqt --release --no-translations --no-compiler-runtime (Join-Path $dist 'UrentQRGenerator.exe')
+          cmake -S . -B build `
+            -G "Visual Studio 17 2022" `
+            -A x64 `
+            "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" `
+            2>&1 | Tee-Object -FilePath configure.log
 
-      - name: List dist (debug)
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      # 5. Компиляция
+      - name: Build application
         shell: pwsh
-        run: Get-ChildItem -Recurse dist | Select-Object -ExpandProperty FullName
+        run: |
+          cmake --build build `
+            --config Release `
+            --parallel `
+            2>&1 | Tee-Object -FilePath build.log
 
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      # 6. Создание папки с приложением
+      - name: Prepare distribution
+        shell: pwsh
+        run: |
+          $sourceExe = Join-Path $env:GITHUB_WORKSPACE `
+            "build/Release/UrentQRGenerator.exe"
+
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+
+          if (-not (Test-Path $sourceExe)) {
+            Get-ChildItem build -Recurse -Filter "*.exe"
+            throw "UrentQRGenerator.exe was not produced"
+          }
+
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+
+          Copy-Item $sourceExe $dist
+
+          Write-Host "Executable copied to dist"
+
+      # 7. Копирование библиотек Qt
+      - name: Deploy Qt dependencies
+        shell: pwsh
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+
+          $exe = Join-Path $dist "UrentQRGenerator.exe"
+
+          $windeployqt = Join-Path $env:QT_ROOT_DIR `
+            "bin/windeployqt.exe"
+
+          & $windeployqt --release --no-translations $exe
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      # 8. Проверка готового приложения
+      - name: Verify distribution
+        shell: pwsh
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+
+          if (-not (Test-Path "$dist/UrentQRGenerator.exe")) {
+            throw "EXE file is missing"
+          }
+
+          if (-not (Test-Path "$dist/platforms/qwindows.dll")) {
+            throw "Qt Windows platform plugin is missing"
+          }
+
+          Get-ChildItem $dist -Recurse |
+            Select-Object FullName, Length
+
+      # 9. Создание ZIP
       - name: Create ZIP archive
         shell: pwsh
-        run: Compress-Archive -Path dist/* -DestinationPath UrentQRGenerator_Windows.zip -Force
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
 
-      - name: Upload to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
+          $zip = Join-Path $env:GITHUB_WORKSPACE `
+            "UrentQRGenerator_Windows.zip"
+
+          Compress-Archive `
+            -Path "$dist/*" `
+            -DestinationPath $zip `
+            -CompressionLevel Optimal `
+            -Force
+
+          if (-not (Test-Path $zip)) {
+            throw "ZIP archive was not created"
+          }
+
+          Write-Host "ZIP successfully created"
+
+      # 10. Сохранение логов даже при ошибке
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          files: UrentQRGenerator_Windows.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: Windows-build-diagnostics
+          path: |
+            configure.log
+            build.log
+          if-no-files-found: ignore
 
-      - name: Upload artifact (manual test)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+      # 11. Выдача готового ZIP
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v7
         with:
           name: UrentQRGenerator_Windows
           path: UrentQRGenerator_Windows.zip
+          if-no-files-found: error
+
+      # 12. Загрузка ZIP в GitHub Releases
+      - name: Publish GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: UrentQRGenerator_Windows.zip
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
