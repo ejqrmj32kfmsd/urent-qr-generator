@@ -1,0 +1,54 @@
+name: Build Windows Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.0'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtbase'
+
+      - name: Install build tools
+        run: |
+          choco install cmake ninja -y
+          # vcpkg для зависимостей, если FetchContent потребует системные либы
+          vcpkg integrate install
+
+      - name: Configure CMake
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Deploy Qt dependencies
+        run: |
+          windeployqt --release --no-compiler-runtime build/UrentQRGenerator.exe
+
+      - name: Copy qrencode dll (если потребовалась динамическая линковка)
+        run: |
+          # Если FetchContent собрал .dll, копируем её в папку с exe
+          # Обычно FetchContent собирает статически, этот шаг можно пропустить, если exe запускается
+          Copy-Item -Path build/_deps/qrencode-build/*.dll -Destination build/ -ErrorAction SilentlyContinue
+
+      - name: Create ZIP archive
+        run: |
+          Compress-Archive -Path build/UrentQRGenerator.exe, build/*.dll, build/imageformats, build/platforms -DestinationPath UrentQRGenerator_Windows.zip
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: UrentQRGenerator_Windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
