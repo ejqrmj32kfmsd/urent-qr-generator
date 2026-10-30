@@ -3,63 +3,63 @@ name: Build Windows Release
 on:
   release:
     types: [published]
-  workflow_dispatch:  # Добавляем ручной запуск для тестов
+  workflow_dispatch:   # ручной запуск для тестов без релиза
 
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Обновлена версия
+        uses: actions/checkout@v4
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4  # Обновлена версия
+        uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.0'
-          host: 'windows'
-          target: 'desktop'
+          version: '6.5.3'
           arch: 'win64_msvc2019_64'
-          modules: 'qtbase'
+          # modules НЕ указываем: qtbase базовый, PrintSupport входит в него.
+          # Именно modules: 'qtbase' ронял aqt (python) с exit code 1.
+          cache: true
 
-      - name: Setup Visual Studio
-        uses: microsoft/setup-msbuild@v2
+      - name: Show Qt location (debug)
+        run: |
+          (Get-Command qmake).Source
+          (Get-Command windeployqt).Source
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+          # Вычисляем корень Qt из пути к qmake (лежит в <QtRoot>/bin/qmake.exe)
+          $qtBin  = (Get-Command qmake).Source
+          $qtRoot = Split-Path (Split-Path $qtBin)
+          Write-Host "Qt root: $qtRoot"
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+                -DCMAKE_BUILD_TYPE=Release `
+                -DCMAKE_PREFIX_PATH="$qtRoot"
 
       - name: Build
-        run: |
-          cmake --build build --config Release --parallel
+        run: cmake --build build --config Release --parallel
 
-      - name: Deploy Qt dependencies
-        run: |
-          windeployqt --release --no-compiler-runtime build/Release/UrentQRGenerator.exe
+      - name: Deploy Qt runtime (dll + plugins рядом с exe)
+        run: windeployqt --release --no-translations --no-compiler-runtime build/Release/UrentQRGenerator.exe
 
-      - name: Copy qrencode DLL if exists
-        run: |
-          $dllPath = Get-ChildItem -Path build -Recurse -Filter "qrencode.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($dllPath) {
-            Copy-Item $dllPath.FullName -Destination build/Release/ -Force
-          }
+      - name: List build output (debug)
+        run: Get-ChildItem -Recurse build/Release | Select-Object -ExpandProperty FullName
 
       - name: Create ZIP archive
-        run: |
-          $zipPath = "UrentQRGenerator_Windows.zip"
-          Compress-Archive -Path build/Release/UrentQRGenerator.exe, build/Release/*.dll, build/Release/imageformats, build/Release/platforms -DestinationPath $zipPath -Force
+        run: Compress-Archive -Path build/Release/* -DestinationPath UrentQRGenerator_Windows.zip -Force
 
       - name: Upload to Release
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2  # Обновлена версия
+        uses: softprops/action-gh-release@v2
         with:
           files: UrentQRGenerator_Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Upload artifact (for testing)
+
+      - name: Upload artifact (для ручного теста)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4  # Обновлена версия
+        uses: actions/upload-artifact@v4
         with:
           name: UrentQRGenerator_Windows
           path: UrentQRGenerator_Windows.zip
