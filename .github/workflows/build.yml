@@ -3,16 +3,18 @@ name: Build Windows Release
 on:
   release:
     types: [published]
+  workflow_dispatch:  # Добавляем ручной запуск для тестов
 
 jobs:
   build:
     runs-on: windows-latest
+    
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # Обновлена версия
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4  # Обновлена версия
         with:
           version: '6.5.0'
           host: 'windows'
@@ -20,35 +22,44 @@ jobs:
           arch: 'win64_msvc2019_64'
           modules: 'qtbase'
 
-      - name: Install build tools
-        run: |
-          choco install cmake ninja -y
-          # vcpkg для зависимостей, если FetchContent потребует системные либы
-          vcpkg integrate install
+      - name: Setup Visual Studio
+        uses: microsoft/setup-msbuild@v2
 
       - name: Configure CMake
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --config Release
+        run: |
+          cmake --build build --config Release --parallel
 
       - name: Deploy Qt dependencies
         run: |
-          windeployqt --release --no-compiler-runtime build/UrentQRGenerator.exe
+          windeployqt --release --no-compiler-runtime build/Release/UrentQRGenerator.exe
 
-      - name: Copy qrencode dll (если потребовалась динамическая линковка)
+      - name: Copy qrencode DLL if exists
         run: |
-          # Если FetchContent собрал .dll, копируем её в папку с exe
-          # Обычно FetchContent собирает статически, этот шаг можно пропустить, если exe запускается
-          Copy-Item -Path build/_deps/qrencode-build/*.dll -Destination build/ -ErrorAction SilentlyContinue
+          $dllPath = Get-ChildItem -Path build -Recurse -Filter "qrencode.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($dllPath) {
+            Copy-Item $dllPath.FullName -Destination build/Release/ -Force
+          }
 
       - name: Create ZIP archive
         run: |
-          Compress-Archive -Path build/UrentQRGenerator.exe, build/*.dll, build/imageformats, build/platforms -DestinationPath UrentQRGenerator_Windows.zip
+          $zipPath = "UrentQRGenerator_Windows.zip"
+          Compress-Archive -Path build/Release/UrentQRGenerator.exe, build/Release/*.dll, build/Release/imageformats, build/Release/platforms -DestinationPath $zipPath -Force
 
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2  # Обновлена версия
         with:
           files: UrentQRGenerator_Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload artifact (for testing)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4  # Обновлена версия
+        with:
+          name: UrentQRGenerator_Windows
+          path: UrentQRGenerator_Windows.zip
