@@ -13,6 +13,8 @@
 }
 
 * { box-sizing: border-box; }
+/* Respect the HTML hidden attribute even when component styles set display:flex/block. */
+[hidden] { display: none !important; }
 html, body { min-height: 100%; }
 body {
   margin: 0;
