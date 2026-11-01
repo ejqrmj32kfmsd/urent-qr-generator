@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7026c9">
+  <meta name="description" content="Генератор QR-наклеек для самокатов Urent. Печать A4 и экспорт PNG, PDF и Word.">
+  <title>Urent — генератор QR-наклеек</title>
+  <link rel="stylesheet" href="styles.css">
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+    integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  ></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-word">ЮРЕНТ</div>
+        <div class="brand-caption">Генератор сервисных QR-наклеек</div>
+      </div>
+      <div class="header-pill"><span class="status-dot"></span> СЕРВИСНЫЙ ИНСТРУМЕНТ</div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel input-panel" aria-labelledby="input-heading">
+        <div class="panel-heading-row">
+          <div>
+            <p class="eyebrow">ПОДГОТОВКА</p>
+            <h1 id="input-heading">Список самокатов</h1>
+          </div>
+          <span class="step-number">01</span>
+        </div>
+        <p class="helper">Вставь номера — по одному на строку. Можно разделять запятыми или точками с запятой.</p>
+        <label class="sr-only" for="scooter-input">Номера самокатов</label>
+        <textarea id="scooter-input" spellcheck="false" placeholder="Например:\n137-539\n000001\n428-016"></textarea>
+        <div class="counter-row">
+          <span id="valid-count" class="counter">Найдено номеров: 0</span>
+          <span id="invalid-count" class="invalid-counter" aria-live="polite"></span>
+        </div>
+        <p class="format-note">Формат: <strong>000-000</strong> или <strong>000000</strong>. Повторы объединяются.</p>
+
+        <div class="actions">
+          <button class="button button-primary" id="print-button" type="button" disabled>
+            <span class="button-icon" aria-hidden="true">▤</span> Печать на A4
+          </button>
+          <div class="button-pair">
+            <button class="button button-secondary" id="pdf-button" type="button" disabled>Сохранить в PDF</button>
+            <button class="button button-secondary" id="word-button" type="button" disabled>Сохранить для Word</button>
+          </div>
+          <button class="button button-secondary button-wide" id="png-button" type="button" disabled>Сохранить в PNG</button>
+        </div>
+        <p class="privacy-note"><span aria-hidden="true">●</span> Номера обрабатываются в браузере и не отправляются на сервер.</p>
+      </section>
+
+      <section class="panel preview-panel" aria-labelledby="preview-heading">
+        <div class="panel-heading-row">
+          <div>
+            <p class="eyebrow">РЕЗУЛЬТАТ</p>
+            <h2 id="preview-heading">Предпросмотр наклейки</h2>
+          </div>
+          <span class="size-chip">23 × 23 мм</span>
+        </div>
+        <p class="helper preview-helper">Показывается первая корректная запись из списка. Размер наклейки при экспорте и печати — 23 × 23 мм.</p>
+
+        <div class="preview-stage">
+          <div class="sticker-frame">
+            <img id="preview-image" alt="Предпросмотр наклейки Urent 23 на 23 миллиметра" hidden>
+            <div id="preview-empty" class="empty-preview">
+              <div class="empty-mark">Ю</div>
+              <strong>Здесь появится наклейка</strong>
+              <span>Введи номер самоката слева</span>
+            </div>
+          </div>
+        </div>
+        <div id="preview-meta" class="preview-meta">Наклейка будет подготовлена в масштабе 1:1 для печати.</div>
+        <div id="library-error" class="library-error" role="alert" hidden>
+          Не удалось загрузить генератор QR-кодов. Проверь подключение к интернету и обнови страницу.
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+      <span>URENT · СЕРВИСНЫЙ ЦЕНТР</span>
+      <span>Чёрно-белая печать · 23 × 23 мм</span>
+    </footer>
+  </div>
+
+  <div id="print-area" aria-hidden="true"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
