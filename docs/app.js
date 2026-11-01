@@ -138,6 +138,7 @@
     if (!hasNumbers) {
       currentSticker = null;
       elements.previewImage.hidden = true;
+      elements.previewImage.removeAttribute('src');
       elements.previewEmpty.hidden = false;
       elements.previewMeta.textContent = parsed.invalid
         ? 'Проверь формат номеров: шесть цифр, дефис необязателен.'
@@ -148,6 +149,7 @@
     if (typeof window.QRCode !== 'function') {
       elements.libraryError.hidden = false;
       elements.previewImage.hidden = true;
+      elements.previewImage.removeAttribute('src');
       elements.previewEmpty.hidden = false;
       return;
     }
