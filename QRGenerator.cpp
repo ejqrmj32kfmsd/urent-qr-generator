@@ -362,7 +362,7 @@ QString QRGenerator::formattedNumber(const QString &compactNumber)
 QString QRGenerator::qrPayload(const QString &compactNumber)
 {
     // The supplied reference sticker decodes to this exact URL pattern.
-    return QStringLiteral("https://ure.su/a/") + compactNumber;
+    return QStringLiteral("https://ure.su/a/s.") + compactNumber;
 }
 
 QImage QRGenerator::createStickerImage(const QString &compactNumber, int dpi) const
