@@ -5,7 +5,7 @@
   const DPI = 600;
   const STICKER_PX = Math.round(STICKER_MM / 25.4 * DPI); // 543 px at 600 DPI
   const QR_PX = 380;
-  const QR_PREFIX = 'https://ure.su/a/';
+  const QR_PREFIX = 'https://ure.su/a/s.';
   const PAGE_CAPACITY = 48; // 6 columns x 8 rows on A4
 
   const elements = {
